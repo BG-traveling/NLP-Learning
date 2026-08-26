@@ -28,23 +28,35 @@ CNN(ResNet, LeNet, AlexNet)을 통한 이미지 특징추출·분류·객체탐�
 "나는 어제 친구랑 밥을 먹었다" → [3, 8, 21, 15, 42]
 ```
 
-## 실습: SMS Spam Classification
+## 실습: SMS Spam Classification (RNN)
 
-`main.py` — UCI SMS Spam Collection 데이터셋으로 스팸 여부를 분류하는 텍스트 분류 실습.
+`main.py` + `models/rnn.py` — UCI SMS Spam Collection 데이터셋으로 스팸 여부를 분류하는 텍스트 분류 모델을 전처리부터 학습 루프까지 직접 구현.
+
+```
+원본 텍스트(.tsv)
+  → tokenize()        소문자화 → 정규식으로 영문/숫자 외 제거 → 공백 분리
+  → build_vocab()     빈도(min_freq) 기반 단어 사전, <PAD>=0, <UNK>=1
+  → SpamDataset        문장 → 정수 시퀀스 변환 + max_len(50) 패딩/자르기
+  → random_split        Train 70% / Valid 15% / Test 15%
+  → DataLoader          batch_size=32
+  → SpamRNN             Embedding → RNN → Dropout → Linear
+  → train()             CrossEntropy + Optimizer, epoch별 loss/acc 기록
+```
 
 - **데이터**: `SMSSpamCollection` (ham/spam 라벨 + 원문 텍스트, 5,574건). 없을 경우 UCI 저장소에서 자동 다운로드 후 압축 해제
-- **전처리 파이프라인**:
-  - `tokenize()` — 소문자화 → 알파벳/숫자 외 문자 제거(정규표현식) → 공백 기준 토큰 분리
-  - `build_vocab()` — 등장 빈도(`min_freq`) 기준으로 단어 사전(vocab) 구성, `<PAD>`(0)/`<UNK>`(1) 특수 토큰 포함
-  - `preprocessing()` — 라벨을 0/1로 이진 인코딩 후 vocab 생성
-- **다음 단계 예정**: 시퀀스 패딩 → RNN/LSTM/GRU 기반 분류 모델 학습 → 평가
+- **`SpamDataset` (커스텀 PyTorch Dataset)**: `__len__`, `__getitem__` 구현. 텍스트를 vocab 기준 정수 시퀀스로 바꾸고 `max_len`에 맞춰 패딩(부족분 0)/자르기(초과분 제거)
+- **`SpamRNN` 모델**: `nn.Embedding(padding_idx=0)`으로 `<PAD>` 토큰은 학습에서 제외, `nn.RNN`의 마지막 타임스텝 hidden state를 문장 전체 맥락 벡터로 사용해 `nn.Linear`로 분류
+- **`train()`**: epoch별 train loss/accuracy, validation accuracy 기록 및 best validation accuracy 추적
+- **다음 단계**: 실제 학습 실행 및 결과 기록 → RNN을 LSTM/GRU로 교체해 성능 비교 → F1-score 등 평가지표 보강
 
 ## 폴더 구성
 
 ```
-├── main.py               # 전처리 + vocab 구축 (진행 중)
-├── SMSSpamCollection      # 실습 데이터셋
-├── requirements.txt       # 의존성 (PyTorch, pandas, scikit-learn 등)
+├── main.py                # 전처리 + Dataset/DataLoader + 학습 루프
+├── models/
+│   └── rnn.py              # SpamRNN (Embedding + RNN + FC)
+├── SMSSpamCollection        # 실습 데이터셋
+├── requirements.txt         # 의존성 (PyTorch, pandas, scikit-learn 등)
 └── README.md
 ```
 
