@@ -9,8 +9,46 @@
 #urllib.request -> 인터넷 자료 다운로드 라이브러리
 import os, re, urllib.request, zipfile
 import pandas as pd  
+import torch
+import torch.nn as nn
+from torch.utils.data import DataLoader, Dataset, random_split
+from collections import Counter #워드클라우드 만들 때 '단어 수' 함수
+from models.rnn import SpamRNN
+import torch.optim as optim
 
 MAX_LEN = 50
+#자연어 모델을 위한 커스텀 데이터셋 만들기
+class SpamDataset(Dataset):
+    #데이터셋이 필수적으로 가져야할 3가지 함수
+    def __init__(self, df, vocab, max_len):
+        #데이터 + 라벨
+        #text의 vocab 기반 정수 전환
+        self.texts = df['text'].tolist()
+        #labels의 tensor 전환 필요 / torch.long 은 int64
+        self.labels = torch.tensor(df['label'].tolist(), 
+                                dtype=torch.long)
+        self.vocab = vocab
+        self.max_len = max_len
+
+    #MAX_LEN = 50
+    #{'<PAD>': 0, '<UNK>': 1, 'go': 2, 'until': 3, 'point': 4
+    #Go until jurong point
+    def _text_to_tensor(self, text, vocab, max_len=MAX_LEN):
+        sample = [vocab.get(t, 1) for t in tokenize(text)]
+
+        if len(sample) >= max_len:
+            sample = sample[:max_len]
+        else:
+            sample += [0] * (max_len - len(sample))
+        return torch.tensor(sample, dtype=torch.long)
+
+    def __len__(self):
+        return len(self.labels)
+
+    def __getitem__(self, index):
+        text = self._text_to_tensor(self.texts[index], self.vocab, self.max_len)
+        label = self.labels[index]
+        return text, label
 
 def load_data(data_path='SMSSpamCollection', batch_size=32):
     #os.path.exists(경로) : '경로'가 존재하는가?
@@ -29,7 +67,7 @@ def tokenize(text):
     return text
 
 #문자열 -> 정수, 어떤 문자열이 몇 번 정수로 바뀌었나? 기억
-from collections import Counter #워드클라우드 만들 때 '단어 수' 함수
+
 def build_vocab(df, min_freq=2):
     #나는 딥러닝을 공부하고 있어. 딥러닝은 정말 많은 작업을 할 수 있어.
     # 나 0 는 1 딥러닝 2 을 4 공부하고 3 있어 4 딥러닝 2 은 5 정말 6 많은 7 작업 8 을 ...
@@ -68,43 +106,7 @@ def preprocessing(data_path='SMSSpamCollection'):
     train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True)
     valid_loader = DataLoader(valid_set, batch_size=batch_size)
     test_loader = DataLoader(test_set, batch_size=batch_size)
-    return train_loader, valid_loader, test_loader
-
-
-#자연어 모델을 위한 커스텀 데이터셋 만들기
-import torch
-from torch.utils.data import DataLoader, Dataset, random_split
-class SpamDataset(Dataset):
-    #데이터셋이 필수적으로 가져야할 3가지 함수
-    def __init__(self, df, vocab, max_len):
-        #데이터 + 라벨
-        #text의 vocab 기반 정수 전환
-        self.texts = df['text'].tolist()
-        #labels의 tensor 전환 필요 / torch.long 은 int64
-        self.labels = torch.tensor(df['label'].tolist(), 
-                                dtype=torch.long)
-        self.vocab = vocab
-        self.max_len = max_len
-
-    #MAX_LEN = 50
-    #{'<PAD>': 0, '<UNK>': 1, 'go': 2, 'until': 3, 'point': 4
-    #Go until jurong point
-    def _text_to_tensor(self, text, vocab, max_len=MAX_LEN):
-        sample = [vocab.get(t, 1) for t in tokenize(text)]
-
-        if len(sample) >= max_len:
-            sample = sample[:max_len]
-        else:
-            sample += [0] * (max_len - len(sample))
-        return torch.tensor(sample, dtype=torch.long)
-
-    def __len__(self):
-        return len(self.labels)
-
-    def __getitem__(self, index):
-        text = self._text_to_tensor(self.texts[index], self.vocab, self.max_len)
-        label = self.labels[index]
-        return text, label
+    return train_loader, valid_loader, test_loader, vocab
 
 def train(model, train_loader, valid_loader, criterion, optimizer,
         num_epochs, device, model_name='Model'):
@@ -168,15 +170,24 @@ def evaluate(model, test_loader, device, model_name='Model'):
             all_preds.extend(pred.cpu().numpy())
             all_labels.extend(y_batch.numpy())
 
-    print(f'\n── {model_name} 테스트 결과 ──────────────────────────')
-    print(classification_report(all_labels, all_preds, target_names=['ham', 'spam']))
     return all_labels, all_preds
 
 if __name__ == '__main__':
-    train_loader, valid_loader, test_loader = preprocessing()
+    train_loader, valid_loader, test_loader, vocab = preprocessing()
 
-    # x_train, y_train = next(iter(train_loader))
-    # print(x_train.shape)
-    # print(y_train.shape)
-    # print(x_train[0])
-    # print(y_train[0])
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    vocab_size = len(vocab)
+
+    #훈련코드
+    #1. RNN.py의 SpamRNN을 가져오시오
+    model = SpamRNN(vocab_size=vocab_size)
+
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.Adam(model.parameters())
+
+    #2. train에 입력하시오 -> criterion(크로스엔트로피손실) / 최적화 Adam
+    history = train(model, train_loader, valid_loader, criterion, optimizer,
+                    num_epochs=10, device=device, model_name='RNN')
+
+    #3. evaluate에 입력하시오
+    evaluate(model, test_loader, device, model_name='RNN')

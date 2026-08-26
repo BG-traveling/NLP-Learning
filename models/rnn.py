@@ -5,7 +5,8 @@ PAD_IDX = 0
 
 class SpamRNN(nn.Module):
     def __init__(self, vocab_size, embed_size=64, hidden_size=128, num_layers=3, dropout=0.3, num_classes=2):
-        #nn.Embedding(input개수, output개수) -> 
+        super().__init__()
+        #nn.Embedding(input개수, output개수) ->
         #input -> vocab_size => N개의 단어들을 가지고 있습니다~
         #embedding -> 하나의 단어를 '몇 차원'으로 표시할 것인지
         #embed_size == embed_dim(임베딩 차원)
