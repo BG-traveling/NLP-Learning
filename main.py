@@ -9,15 +9,15 @@
 #urllib.request -> 인터넷 자료 다운로드 라이브러리
 import os, re, urllib.request, zipfile
 import pandas as pd  
-import torch
-import torch.nn as nn
-from torch.utils.data import DataLoader, Dataset, random_split
+
+#문자열 -> 정수, 어떤 문자열이 몇 번 정수로 바뀌었나? 기억
 from collections import Counter #워드클라우드 만들 때 '단어 수' 함수
-from models.rnn import SpamRNN
-import torch.optim as optim
+
+#자연어 모델을 위한 커스텀 데이터셋 만들기
+import torch
+from torch.utils.data import DataLoader, Dataset, random_split
 
 MAX_LEN = 50
-#자연어 모델을 위한 커스텀 데이터셋 만들기
 class SpamDataset(Dataset):
     #데이터셋이 필수적으로 가져야할 3가지 함수
     def __init__(self, df, vocab, max_len):
@@ -26,7 +26,7 @@ class SpamDataset(Dataset):
         self.texts = df['text'].tolist()
         #labels의 tensor 전환 필요 / torch.long 은 int64
         self.labels = torch.tensor(df['label'].tolist(), 
-                                dtype=torch.long)
+                                   dtype=torch.long)
         self.vocab = vocab
         self.max_len = max_len
 
@@ -66,7 +66,6 @@ def tokenize(text):
     text = text.split()
     return text
 
-#문자열 -> 정수, 어떤 문자열이 몇 번 정수로 바뀌었나? 기억
 
 def build_vocab(df, min_freq=2):
     #나는 딥러닝을 공부하고 있어. 딥러닝은 정말 많은 작업을 할 수 있어.
@@ -81,7 +80,6 @@ def build_vocab(df, min_freq=2):
         if freq >= min_freq: 
             vocab[word] = len(vocab)
     return vocab
-
 
 def preprocessing(data_path='SMSSpamCollection'):
     df = pd.read_csv(data_path, sep='\t', header=None, names=['label', 'text'])
@@ -108,6 +106,7 @@ def preprocessing(data_path='SMSSpamCollection'):
     test_loader = DataLoader(test_set, batch_size=batch_size)
     return train_loader, valid_loader, test_loader, vocab
 
+
 def train(model, train_loader, valid_loader, criterion, optimizer,
         num_epochs, device, model_name='Model'):
     model.to(device)
@@ -126,6 +125,7 @@ def train(model, train_loader, valid_loader, criterion, optimizer,
 
             optimizer.zero_grad()
             loss.backward()
+            # torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=5.0)
             optimizer.step()
 
             running_loss += loss.item()
@@ -172,22 +172,58 @@ def evaluate(model, test_loader, device, model_name='Model'):
 
     return all_labels, all_preds
 
+#커스텀 데이터셋 내부의 함수
+def text_to_tensor(text, vocab, max_len=MAX_LEN):
+    sample = [vocab.get(t, 1) for t in tokenize(text)]
+
+    if len(sample) >= max_len:
+        sample = sample[:max_len]
+    else:
+        sample += [0] * (max_len - len(sample))
+    return torch.tensor(sample, dtype=torch.long)
+
+#text =>> 우리가 직접 입력을 받자!
+def predict(model, text, vocab, device):
+    model.eval()
+    tensor = text_to_tensor(text, vocab, 50).unsqueeze(0).to(device)
+    with torch.no_grad():
+        prob = torch.softmax(model(tensor), dim=1)[0]
+
+    label = 'SPAM' if prob[1] > 0.5 else 'HAM'
+    print(f'입력 텍스트 {text} \n 판정 결과 {label} \n 신뢰도 {prob[1] * 100:.2f}%')
+
+#    #1. RNN.py의 SpamRNN을 가져오시오
+from models.rnn import SpamRNN
+import torch.nn as nn
+import torch.optim as optim
 if __name__ == '__main__':
     train_loader, valid_loader, test_loader, vocab = preprocessing()
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     vocab_size = len(vocab)
 
-    #훈련코드
-    #1. RNN.py의 SpamRNN을 가져오시오
-    model = SpamRNN(vocab_size=vocab_size)
-
+    model = SpamRNN(vocab_size=vocab_size, num_layers=2)
+    # weights = torch.tensor([1.0, 5.0])
+    # criterion = nn.CrossEntropyLoss(weight=weights.to(device))
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters())
+    num_epochs = 30
 
-    #2. train에 입력하시오 -> criterion(크로스엔트로피손실) / 최적화 Adam
-    history = train(model, train_loader, valid_loader, criterion, optimizer,
-                    num_epochs=10, device=device, model_name='RNN')
+    #훈련코드!
+    #2.train에 입력하시오 -> criterion(크로스엔트로피손실) / 최적화 Adam
+    train(model, train_loader, valid_loader, 
+        criterion, optimizer,
+        num_epochs, device, model_name='Model')
 
-    #3. evaluate에 입력하시오
-    evaluate(model, test_loader, device, model_name='RNN')
+    #3.evaluate 에 입력하시오
+    evaluate(model, test_loader, device)
+
+    #한 줄의 문장으로 추론을 하겠다! ->  predict(자연어를 vocab기반 변환)
+    text = input('검증할 문장을 넣어주세요 : \n')
+    predict(model, text, vocab, device)
+
+    # x_train, y_train = next(iter(train_loader))
+    # print(x_train.shape)
+    # print(y_train.shape)
+    # print(x_train[0])
+    # print(y_train[0])
