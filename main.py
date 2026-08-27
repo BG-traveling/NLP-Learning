@@ -66,7 +66,6 @@ def tokenize(text):
     text = text.split()
     return text
 
-
 def build_vocab(df, min_freq=2):
     #나는 딥러닝을 공부하고 있어. 딥러닝은 정말 많은 작업을 할 수 있어.
     # 나 0 는 1 딥러닝 2 을 4 공부하고 3 있어 4 딥러닝 2 은 5 정말 6 많은 7 작업 8 을 ...
@@ -109,7 +108,7 @@ def preprocessing(data_path='SMSSpamCollection'):
 
 
 def train(model, train_loader, valid_loader, criterion, optimizer,
-        num_epochs, device, model_name='Model'):
+          num_epochs, device, model_name='Model'):
     model.to(device)
     history = {'train_loss': [], 'train_acc': [], 'valid_acc': []}
     best_valid_acc = 0.0
@@ -126,7 +125,6 @@ def train(model, train_loader, valid_loader, criterion, optimizer,
 
             optimizer.zero_grad()
             loss.backward()
-            # torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=5.0)
             optimizer.step()
 
             running_loss += loss.item()
@@ -156,7 +154,7 @@ def train(model, train_loader, valid_loader, criterion, optimizer,
 
         if (epoch + 1) % 2 == 0:
             print(f'[{model_name}] Epoch {epoch+1:2d}/{num_epochs} | '
-                f'loss: {train_loss:.4f} | train: {train_acc:.2f}% | valid: {valid_acc:.2f}%')
+                  f'loss: {train_loss:.4f} | train: {train_acc:.2f}% | valid: {valid_acc:.2f}%')
 
     print(f'[{model_name}] 최고 검증 정확도: {best_valid_acc:.2f}%\n')
     return history
@@ -194,7 +192,7 @@ def predict(model, text, vocab, device):
     print(f'입력 텍스트 {text} \n 판정 결과 {label} \n 신뢰도 {prob[1] * 100:.2f}%')
 
 #    #1. RNN.py의 SpamRNN을 가져오시오
-from models.rnn import SpamRNN, SpamGRU, SpamLSTM
+from models.rnn import SpamRNN, SpamLSTM, SpamGRU
 from utils.visualize import plot_comparison, plot_confusion_matrices
 import torch.nn as nn
 import torch.optim as optim
@@ -206,8 +204,9 @@ MODEL_MAPS = {
 }
 
 if __name__ == '__main__':
+    #load_data()
 
-    #공통 데이터셋
+    #공통 데이터셋 
     train_loader, valid_loader, test_loader, vocab = preprocessing()
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -216,14 +215,15 @@ if __name__ == '__main__':
     histories, eval_results, train_models = [], [], {}
 
     #model = 클래스 하드코딩(SpamRNN)
-    for name in ['rnn', 'lstm', 'gru']:
+    for name in ['rnn', 'lstm', 'gru'] :
 
-        print('\n', '++' * 30)
+        print('\n', '++' *  30, )
         print(f'{name.upper()} 모델 훈련 시작')
 
         model = MODEL_MAPS[name](
             vocab_size = vocab_size
         )
+
         criterion = nn.CrossEntropyLoss()
         optimizer = optim.Adam(model.parameters())
         num_epochs = 30
@@ -231,11 +231,14 @@ if __name__ == '__main__':
         #훈련코드!
         #2.train에 입력하시오 -> criterion(크로스엔트로피손실) / 최적화 Adam
         history = train(model, train_loader, valid_loader, 
-                        criterion, optimizer,
-                        num_epochs, device, model_name=name)
+            criterion, optimizer,
+            num_epochs, device, 
+            model_name=name.upper())
 
         #3.evaluate 에 입력하시오
-        labels, preds = evaluate(model, test_loader, device, model_name=name.upper())
+        labels, preds = evaluate(model, test_loader, device, 
+                                model_name=name.upper())
+
 
         histories.append(history)
         eval_results.append((labels, preds))
@@ -244,12 +247,12 @@ if __name__ == '__main__':
     plot_comparison(histories, [n.upper() for n in ['rnn', 'lstm', 'gru']])
     plot_confusion_matrices(eval_results, [n.upper() for n in ['rnn', 'lstm', 'gru']])
 
-        #한 줄의 문장으로 추론을 하겠다! ->  predict(자연어를 vocab기반 변환)
-        # text = input('검증할 문장을 넣어주세요 : \n')
-        # predict(model, text, vocab, device)
+    #한 줄의 문장으로 추론을 하겠다! ->  predict(자연어를 vocab기반 변환)
+    # text = input('검증할 문장을 넣어주세요 : \n')
+    # predict(model, text, vocab, device)
 
-        # x_train, y_train = next(iter(train_loader))
-        # print(x_train.shape)
-        # print(y_train.shape)
-        # print(x_train[0])
-        # print(y_train[0])
+    # x_train, y_train = next(iter(train_loader))
+    # print(x_train.shape)
+    # print(y_train.shape)
+    # print(x_train[0])
+    # print(y_train[0])

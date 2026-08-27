@@ -46,9 +46,10 @@ CNN(ResNet, LeNet, AlexNet)을 통한 이미지 특징추출·분류·객체탐�
 
 - **데이터**: `SMSSpamCollection` (ham/spam 라벨 + 원문 텍스트, 5,574건). 없을 경우 UCI 저장소에서 자동 다운로드 후 압축 해제
 - **`SpamDataset` (커스텀 PyTorch Dataset)**: `__len__`, `__getitem__` 구현. 텍스트를 vocab 기준 정수 시퀀스로 바꾸고 `max_len`에 맞춰 패딩(부족분 0)/자르기(초과분 제거)
-- **`SpamRNN` 모델**: `nn.Embedding(padding_idx=0, embed_size=128)`으로 `<PAD>` 토큰은 학습에서 제외, `nn.RNN(hidden_size=256, num_layers=2)`의 마지막 타임스텝 hidden state를 문장 전체 맥락 벡터로 사용해 `nn.Linear`로 분류
+- **`SpamRNN` 모델**: `nn.Embedding(padding_idx=0, embed_size=128)`으로 `<PAD>` 토큰은 학습에서 제외, `nn.RNN(hidden_size=256, num_layers=5)`의 마지막 타임스텝 hidden state를 문장 전체 맥락 벡터로 사용해 `nn.Linear`로 분류
 - **`SpamLSTM` 모델**: `SpamRNN`과 구조는 동일하고 `nn.RNN` 대신 `nn.LSTM` 사용 — forget/input/output 게이트 3개 + cell state로 기울기 소실에 강함
-- **`SpamGRU` 모델**: reset/update 게이트 2개로 LSTM보다 가벼운 구조, `num_layers=5`로 고정 (수업에서 논의된 "층을 늘리니 valid가 움직이기 시작함"을 반영)
+- **`SpamGRU` 모델**: reset/update 게이트 2개로 LSTM보다 가벼운 구조
+- **세 모델 공통**: `num_layers=5`로 통일 (수업에서 "층을 5개로 늘렸더니 valid가 움직이기 시작함"이 확인되어 RNN/LSTM/GRU 모두에 반영, LSTM/GRU는 생성자 파라미터로 노출하지 않고 내부 고정값으로 설정)
 - **`train()`**: epoch별 train loss/accuracy, validation accuracy 기록 및 best validation accuracy 추적
 - **`predict()` / `text_to_tensor()`**: 학습된 모델에 문장 하나를 직접 입력해서 SPAM/HAM 판정 결과와 신뢰도(%)를 바로 확인할 수 있는 추론 함수 (현재 3-모델 비교 실행부에서는 주석 처리)
 - **`utils/visualize.py`**: `plot_comparison()`으로 세 모델의 학습곡선을(`spam_training_curve.png`), `plot_confusion_matrices()`로 혼동행렬을(`spam_confusion_matrix.png`) 시각화
@@ -63,17 +64,24 @@ CNN(ResNet, LeNet, AlexNet)을 통한 이미지 특징추출·분류·객체탐�
 
 순수 RNN은 기울기 소실 + 클래스 불균형(정상 86.6% / 스팸 13.4%)으로 스팸을 전혀 감지하지 못했고, LSTM/GRU는 게이트 구조 덕분에 소수 클래스인 스팸 패턴도 잘 학습함.
 
-- **다음 단계**: 스팸 문장 조합 기반 데이터 증강(정상:스팸 ≈ 3:1)으로 RNN도 개선 시도, Precision/Recall/F1-score로 세 모델 수치 정리
+- **다음 단계**: 스팸 문장 조합 기반 데이터 증강(정상:스팸 ≈ 3:1)으로 개선 시도, Precision/Recall/F1-score로 세 모델 수치 정리, `num_layers=5` 통일 후 성능 재측정
+
+## 진행 중 실험: 토크나이저 비교 (`tok_main.py`)
+
+"토크나이저만 바꿔도 성능이 달라지는가?"를 확인하는 실험 스크립트. 직접 만든 정규표현식 기반 토큰화 대신 HuggingFace의 사전학습 토크나이저(`bert-base-uncased`, `AutoTokenizer`)로 텍스트를 인코딩하는 `HugDataset`을 구현 중. 같은 LSTM 모델에 두 가지 토크나이저 결과를 각각 넣어 비교할 예정 (현재는 데이터 로드·분할과 데이터셋 클래스까지 작성, 학습 루프는 미완성).
 
 ## 폴더 구성
 
 ```
 ├── main.py                # 전처리 + Dataset/DataLoader + RNN/LSTM/GRU 학습·평가 루프
+├── tok_main.py             # (진행중) HuggingFace 토크나이저 비교 실험
 ├── models/
 │   └── rnn.py              # SpamRNN, SpamLSTM, SpamGRU
 ├── utils/
 │   └── visualize.py         # 학습곡선 · 혼동행렬 시각화
 ├── SMSSpamCollection        # 실습 데이터셋
+├── spam_training_curve.png   # RNN/LSTM/GRU 학습곡선 결과
+├── spam_confusion_matrix.png # RNN/LSTM/GRU 혼동행렬 결과
 ├── requirements.txt         # 의존성 (PyTorch, pandas, scikit-learn 등)
 └── README.md
 ```
