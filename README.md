@@ -66,22 +66,37 @@ CNN(ResNet, LeNet, AlexNet)을 통한 이미지 특징추출·분류·객체탐�
 
 - **다음 단계**: 스팸 문장 조합 기반 데이터 증강(정상:스팸 ≈ 3:1)으로 개선 시도, Precision/Recall/F1-score로 세 모델 수치 정리, `num_layers=5` 통일 후 성능 재측정
 
-## 진행 중 실험: 토크나이저 비교 (`tok_main.py`)
+## 실험: 토크나이저 비교 (`tok_main.py`)
 
-"토크나이저만 바꿔도 성능이 달라지는가?"를 확인하는 실험 스크립트. 직접 만든 정규표현식 기반 토큰화 대신 HuggingFace의 사전학습 토크나이저(`bert-base-uncased`, `AutoTokenizer`)로 텍스트를 인코딩하는 `HugDataset`을 구현 중. 같은 LSTM 모델에 두 가지 토크나이저 결과를 각각 넣어 비교할 예정 (현재는 데이터 로드·분할과 데이터셋 클래스까지 작성, 학습 루프는 미완성).
+"토크나이저만 바꿔도 성능이 달라지는가?"를 확인하는 실험. 직접 만든 정규표현식 기반 토큰화(`main.build_vocab` + `main.SpamDataset`) vs HuggingFace 사전학습 토크나이저(`bert-base-uncased`, `AutoTokenizer`)로 텍스트를 인코딩하는 `HugDataset`을, 같은 `SpamLSTM` 구조에 각각 넣어 학습·평가하여 비교.
+
+- **`HugDataset`**: `tokenizer(text, max_length=50, padding='max_length', truncation=True, return_tensors='pt')`로 서브워드 인코딩까지 한 번에 처리
+- **`make_splits(length_of_df)`**: `torch.randperm` + `manual_seed(42)`로 70/15/15 train/valid/test 인덱스를 생성해, 두 실험이 동일한 문장으로 나뉘도록 재현성 보장
+- 모델 구조(`SpamLSTM`)와 학습 루프(`main.train`/`main.evaluate`)는 그대로 재사용하고, **입력 데이터를 만드는 토크나이저만** 다르게 함
+
+### 결과 (30 epoch 학습)
+
+| 토크나이저 | Validation Accuracy 추이 | Train Loss |
+|---|---|---|
+| 커스텀 정규표현식 (original) | ~86%에서 정체 (다수 클래스 "정상"만 찍는 수준) | 0.28~0.35대에서 거의 안 줄어듦 |
+| HuggingFace `bert-base-uncased` (hug) | 약 5 epoch 만에 97~98%까지 급상승 | 0에 가깝게 꾸준히 하락 |
+
+> **⚠️ 주의(confound)**: 이 실험은 `SpamLSTM`의 `num_layers`를 2→5로 늘린 직후에 진행되어, "토크나이저 차이" 효과와 "5-layer LSTM의 학습 안정성" 효과가 섞여 있습니다. 커스텀 토크나이저의 부진이 순수 토크나이저 효과인지, 작은 vocab에서 5-layer LSTM이 학습에 어려움을 겪은 것인지는 아직 명확히 분리되지 않았습니다. 추후 `num_layers`를 고정한 상태에서 재검증이 필요합니다.
+>
+> 또한 `plot_comparison()`은 `spam_training_curve.png` 파일명을 하드코딩하므로, 이 실험을 실행하면 이전 RNN/LSTM/GRU 비교 결과 이미지가 덮어써집니다.
 
 ## 폴더 구성
 
 ```
 ├── main.py                # 전처리 + Dataset/DataLoader + RNN/LSTM/GRU 학습·평가 루프
-├── tok_main.py             # (진행중) HuggingFace 토크나이저 비교 실험
+├── tok_main.py             # 커스텀 vs HuggingFace 토크나이저 비교 실험
 ├── models/
 │   └── rnn.py              # SpamRNN, SpamLSTM, SpamGRU
 ├── utils/
 │   └── visualize.py         # 학습곡선 · 혼동행렬 시각화
 ├── SMSSpamCollection        # 실습 데이터셋
-├── spam_training_curve.png   # RNN/LSTM/GRU 학습곡선 결과
-├── spam_confusion_matrix.png # RNN/LSTM/GRU 혼동행렬 결과
+├── spam_training_curve.png   # (최신) 토크나이저 비교(original vs hug) 학습곡선 — 파일명 고정이라 실행할 때마다 덮어써짐, 이전 RNN/LSTM/GRU 곡선은 유실됨
+├── spam_confusion_matrix.png # RNN/LSTM/GRU 혼동행렬 결과 (아직 tok_main.py에서는 호출 안 함)
 ├── requirements.txt         # 의존성 (PyTorch, pandas, scikit-learn 등)
 └── README.md
 ```
