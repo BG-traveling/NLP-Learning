@@ -81,6 +81,7 @@ def build_vocab(df, min_freq=2):
             vocab[word] = len(vocab)
     return vocab
 
+#데이터셋을 커스텀 데이터셋 변환하여 train, valid, test 로더를 out (vocab 함께 out)
 def preprocessing(data_path='SMSSpamCollection'):
     df = pd.read_csv(data_path, sep='\t', header=None, names=['label', 'text'])
     #print( df.head() )
@@ -193,37 +194,62 @@ def predict(model, text, vocab, device):
     print(f'입력 텍스트 {text} \n 판정 결과 {label} \n 신뢰도 {prob[1] * 100:.2f}%')
 
 #    #1. RNN.py의 SpamRNN을 가져오시오
-from models.rnn import SpamRNN
+from models.rnn import SpamRNN, SpamGRU, SpamLSTM
+from utils.visualize import plot_comparison, plot_confusion_matrices
 import torch.nn as nn
 import torch.optim as optim
+
+MODEL_MAPS = {
+    'rnn' : SpamRNN,
+    'lstm' : SpamLSTM,
+    'gru' : SpamGRU
+}
+
 if __name__ == '__main__':
+
+    #공통 데이터셋
     train_loader, valid_loader, test_loader, vocab = preprocessing()
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     vocab_size = len(vocab)
 
-    model = SpamRNN(vocab_size=vocab_size, num_layers=2)
-    # weights = torch.tensor([1.0, 5.0])
-    # criterion = nn.CrossEntropyLoss(weight=weights.to(device))
-    criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters())
-    num_epochs = 30
+    histories, eval_results, train_models = [], [], {}
 
-    #훈련코드!
-    #2.train에 입력하시오 -> criterion(크로스엔트로피손실) / 최적화 Adam
-    train(model, train_loader, valid_loader, 
-        criterion, optimizer,
-        num_epochs, device, model_name='Model')
+    #model = 클래스 하드코딩(SpamRNN)
+    for name in ['rnn', 'lstm', 'gru']:
 
-    #3.evaluate 에 입력하시오
-    evaluate(model, test_loader, device)
+        print('\n', '++' * 30)
+        print(f'{name.upper()} 모델 훈련 시작')
 
-    #한 줄의 문장으로 추론을 하겠다! ->  predict(자연어를 vocab기반 변환)
-    text = input('검증할 문장을 넣어주세요 : \n')
-    predict(model, text, vocab, device)
+        model = MODEL_MAPS[name](
+            vocab_size = vocab_size
+        )
+        criterion = nn.CrossEntropyLoss()
+        optimizer = optim.Adam(model.parameters())
+        num_epochs = 30
 
-    # x_train, y_train = next(iter(train_loader))
-    # print(x_train.shape)
-    # print(y_train.shape)
-    # print(x_train[0])
-    # print(y_train[0])
+        #훈련코드!
+        #2.train에 입력하시오 -> criterion(크로스엔트로피손실) / 최적화 Adam
+        history = train(model, train_loader, valid_loader, 
+                        criterion, optimizer,
+                        num_epochs, device, model_name=name)
+
+        #3.evaluate 에 입력하시오
+        labels, preds = evaluate(model, test_loader, device, model_name=name.upper())
+
+        histories.append(history)
+        eval_results.append((labels, preds))
+        train_models[name] = model
+
+    plot_comparison(histories, [n.upper() for n in ['rnn', 'lstm', 'gru']])
+    plot_confusion_matrices(eval_results, [n.upper() for n in ['rnn', 'lstm', 'gru']])
+
+        #한 줄의 문장으로 추론을 하겠다! ->  predict(자연어를 vocab기반 변환)
+        # text = input('검증할 문장을 넣어주세요 : \n')
+        # predict(model, text, vocab, device)
+
+        # x_train, y_train = next(iter(train_loader))
+        # print(x_train.shape)
+        # print(y_train.shape)
+        # print(x_train[0])
+        # print(y_train[0])
