@@ -1,5 +1,5 @@
-import matplotlib.pyplot as plt 
-import seaborn as sns 
+import matplotlib.pyplot as plt
+import seaborn as sns
 from sklearn.metrics import classification_report, confusion_matrix
 
 import matplotlib as mpl

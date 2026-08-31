@@ -1,0 +1,9 @@
+*.vec
+*.vec.gz
+*.zip
+*.100d.txt
+SMSSpamCollection
+models/data/
+__pycache__/
+*.pyc
+.vscode/

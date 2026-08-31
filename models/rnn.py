@@ -5,8 +5,8 @@ PAD_IDX = 0
 
 class SpamRNN(nn.Module):
     def __init__(self, vocab_size, embed_size=128, hidden_size=256, 
-                num_layers=5, 
-                dropout=0.3, num_classes=2):
+                 num_layers=5, 
+                 dropout=0.3, num_classes=2):
         super().__init__()
         #nn.Embedding(input개수, output개수) -> 
         #input -> vocab_size => N개의 단어들을 가지고 있습니다~
@@ -49,14 +49,14 @@ class SpamRNN(nn.Module):
 class SpamLSTM(nn.Module):
     #https://docs.pytorch.org/docs/2.13/generated/torch.nn.LSTM.html
     def __init__(self, vocab_size, 
-                embed_dim = 128, 
-                hidden_size = 256, 
-                dropout = 0.3, 
-                num_classes = 2):
+                 embed_dim = 128, 
+                 hidden_size = 256, 
+                 dropout = 0.3, 
+                 num_classes = 2):
         super().__init__()
         self.embedding = nn.Embedding(vocab_size, 
-                                    embed_dim,
-                                    padding_idx=0)
+                                      embed_dim,
+                                      padding_idx=0)
         self.lstm = nn.LSTM(input_size = embed_dim,
                             hidden_size = hidden_size,
                             num_layers = 5,
@@ -80,10 +80,10 @@ class SpamLSTM(nn.Module):
 
 class SpamGRU(nn.Module):
     def __init__(self, vocab_size, 
-                embed_dim = 128, 
-                hidden_size = 256, 
-                dropout = 0.3, 
-                num_classes = 2):
+                 embed_dim = 128, 
+                 hidden_size = 256, 
+                 dropout = 0.3, 
+                 num_classes = 2):
         super().__init__()
         self.embed = nn.Embedding(vocab_size, embed_dim, padding_idx=0) 
         self.gru = nn.GRU(
